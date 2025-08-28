@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Report Consolidator</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <!-- This style block is updated to correctly position and style the remove button -->
+    <style>
+        .file-input-wrapper {
+            position: relative;
+            cursor: pointer;
+        }
+        .file-input-wrapper .file-info {
+            display: none; /* Hidden by default */
+            text-align: left;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            word-break: break-all;
+        }
+
+        /* This new container will align the filename and the 'x' button on the same line */
+        .file-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .file-input-wrapper .file-name {
+            font-weight: bold;
+            font-size: 0.9em;
+            /* Prevents long filenames from breaking the layout */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 10px; /* Adds space between text and button */
+        }
+        .file-input-wrapper .token-count {
+            margin-top: 5px; /* Overrides default margin for a better fit */
+        }
+        
+        /* Specific styles to override the generic 'button' from styles.css */
+        .remove-file-btn {
+            /* Reset all inherited button styles */
+            background: transparent !important;
+            color: #888 !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: auto !important; /* Allow the button to be only as wide as its content */
+            font-size: 24px !important;
+            font-weight: normal;
+            line-height: 1;
+            cursor: pointer;
+            display: none; /* Hidden by default */
+            transition: color 0.2s;
+        }
+        .remove-file-btn:hover {
+            background: transparent !important; /* Ensure no background on hover */
+            color: #d9534f !important;
+        }
+        
+        /* Hide the actual file input element */
+        .file-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Security Report Consolidator</h1>
+        <p>Upload reports from Fortify, Mend, SonarQube, and Contrast to generate a consolidated analysis.</p>
+        
+        <form id="upload-form">
+            <div class="upload-grid">
+                <!-- File Input Block 1: Fortify -->
+                <div class="file-input-wrapper" id="wrapper-file1">
+                    <label for="file1">Fortify Report</label>
+                    <div class="upload-prompt">Click to upload a file</div>
+                    <div class="file-info">
+                        <div class="file-details">
+                            <span class="file-name"></span>
+                            <button type="button" class="remove-file-btn">&times;</button>
+                        </div>
+                        <div class="token-count"></div>
+                    </div>
+                    <input type="file" id="file1" name="file1" class="file-input" accept=".pdf,.xml,.json,.txt">
+                </div>
+
+                <!-- File Input Block 2: Mend -->
+                <div class="file-input-wrapper" id="wrapper-file2">
+                    <label for="file2">Mend Report</label>
+                    <div class="upload-prompt">Click to upload a file</div>
+                    <div class="file-info">
+                        <div class="file-details">
+                            <span class="file-name"></span>
+                            <button type="button" class="remove-file-btn">&times;</button>
+                        </div>
+                        <div class="token-count"></div>
+                    </div>
+                    <input type="file" id="file2" name="file2" class="file-input" accept=".pdf,.xml,.json,.txt">
+                </div>
+
+                <!-- File Input Block 3: SonarQube -->
+                <div class="file-input-wrapper" id="wrapper-file3">
+                    <label for="file3">SonarQube Report</label>
+                    <div class="upload-prompt">Click to upload a file</div>
+                    <div class="file-info">
+                        <div class="file-details">
+                            <span class="file-name"></span>
+                            <button type="button" class="remove-file-btn">&times;</button>
+                        </div>
+                        <div class="token-count"></div>
+                    </div>
+                    <input type="file" id="file3" name="file3" class="file-input" accept=".pdf,.xml,.json,.txt">
+                </div>
+
+                <!-- File Input Block 4: Contrast -->
+                <div class="file-input-wrapper" id="wrapper-file4">
+                    <label for="file4">Contrast Report</label>
+                    <div class="upload-prompt">Click to upload a file</div>
+                    <div class="file-info">
+                        <div class="file-details">
+                            <span class="file-name"></span>
+                            <button type="button" class="remove-file-btn">&times;</button>
+                        </div>
+                        <div class="token-count"></div>
+                    </div>
+                    <input type="file" id="file4" name="file4" class="file-input" accept=".pdf,.xml,.json,.txt">
+                </div>
+            </div>
+
+            <!-- Total Token Count (No Limit Warning) -->
+            <div class="total-tokens-container">
+                <div class="token-total">
+                    <strong>Estimated Total Prompt Tokens: <span id="total-tokens-display">0</span></strong>
+                </div>
+                <div class="token-breakdown">
+                    <div>Base Prompt Tokens: <span id="base-prompt-tokens-display">...</span></div>
+                    <div>Uploaded File Tokens: <span id="file-tokens-display">0</span></div>
+                </div>
+            </div>
+
+            <button type="submit" id="submit-button" disabled>Consolidate Reports</button>
+        </form>
+
+        <a href="#" id="download-button" class="button-download" style="display: none;" target="_blank">Download Report as DOCX</a>
+        <div id="status-container" style="display:none;">
+            <h2>Processing Status</h2>
+            <ul id="status-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('upload-form');
+            const submitButton = document.getElementById('submit-button');
+            const downloadButton = document.getElementById('download-button');
+            const statusContainer = document.getElementById('status-container');
+            const statusList = document.getElementById('status-list');
+            
+            const baseTokensDisplay = document.getElementById('base-prompt-tokens-display');
+            const fileTokensDisplay = document.getElementById('file-tokens-display');
+            const totalTokensDisplay = document.getElementById('total-tokens-display');
+            
+            let BASE_PROMPT_TOKENS = 0;
+            const fileTokenCounts = { file1: 0, file2: 0, file3: 0, file4: 0 };
+            let currentJobId = null;
+
+            async function loadConfig() {
+                try {
+                    const response = await fetch('/config');
+                    const config = await response.json();
+                    BASE_PROMPT_TOKENS = config.base_prompt_tokens;
+                    baseTokensDisplay.textContent = BASE_PROMPT_TOKENS.toLocaleString();
+                    updateTotalTokens();
+                } catch (error) {
+                    console.error("Failed to load server configuration:", error);
+                    baseTokensDisplay.textContent = "Error";
+                }
+            }
+
+            function updateTotalTokens() {
+                const totalFileTokens = Object.values(fileTokenCounts).reduce((sum, count) => sum + count, 0);
+                const totalPromptTokens = BASE_PROMPT_TOKENS + totalFileTokens;
+
+                fileTokensDisplay.textContent = totalFileTokens.toLocaleString();
+                totalTokensDisplay.textContent = totalPromptTokens.toLocaleString();
+                submitButton.disabled = totalFileTokens === 0;
+            }
+
+            function setupUploader(inputId) {
+                const wrapper = document.getElementById(`wrapper-${inputId}`);
+                const input = document.getElementById(inputId);
+                const uploadPrompt = wrapper.querySelector('.upload-prompt');
+                const fileInfo = wrapper.querySelector('.file-info');
+                const fileNameDisplay = wrapper.querySelector('.file-name');
+                const tokenCountDisplay = wrapper.querySelector('.token-count');
+                const removeBtn = wrapper.querySelector('.remove-file-btn');
+
+                wrapper.addEventListener('click', (e) => {
+                    // Prevent the button click from triggering the file dialog
+                    if (e.target.tagName !== 'BUTTON') {
+                        input.click();
+                    }
+                });
+
+                input.addEventListener('change', async (event) => {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    uploadPrompt.style.display = 'none';
+                    fileInfo.style.display = 'block';
+                    removeBtn.style.display = 'block';
+                    fileNameDisplay.textContent = file.name;
+                    tokenCountDisplay.textContent = 'Calculating...';
+
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    try {
+                        const response = await fetch('/count-tokens', { method: 'POST', body: formData });
+                        const result = await response.json();
+                        fileTokenCounts[inputId] = result.token_count;
+                        tokenCountDisplay.textContent = `~ ${result.token_count.toLocaleString()} tokens`;
+                    } catch (error) {
+                        tokenCountDisplay.textContent = 'Error counting tokens';
+                        fileTokenCounts[inputId] = 0;
+                    }
+                    updateTotalTokens();
+                });
+
+                removeBtn.addEventListener('click', () => {
+                    input.value = ''; // Clear the file input
+                    fileTokenCounts[inputId] = 0;
+                    
+                    uploadPrompt.style.display = 'block';
+                    fileInfo.style.display = 'none';
+                    removeBtn.style.display = 'none';
+                    
+                    updateTotalTokens();
+                });
+            }
+
+            ['file1', 'file2', 'file3', 'file4'].forEach(setupUploader);
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                statusContainer.style.display = 'block';
+                downloadButton.style.display = 'none';
+                statusList.innerHTML = '<li>[STATUS] Preparing to upload files...</li>';
+                submitButton.disabled = true;
+                submitButton.textContent = 'Processing...';
+
+                const formData = new FormData(form);
+
+                try {
+                    const response = await fetch('/upload', { method: 'POST', body: formData });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || `Upload failed: ${response.statusText}`);
+                    }
+                    const result = await response.json();
+                    currentJobId = result.job_id;
+                    
+                    statusList.innerHTML += `<li>[STATUS] Upload successful. Job ID: ${currentJobId}. Connecting...</li>`;
+                    const eventSource = new EventSource(`/stream/${currentJobId}`);
+
+                    eventSource.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
+                        const newLi = document.createElement('li');
+                        if (data.type === 'status') {
+                            newLi.textContent = `[STATUS] ${data.content}`;
+                        } else if (data.type === 'report') {
+                            downloadButton.href = `/download/${currentJobId}`;
+                            downloadButton.style.display = 'block';
+                            newLi.textContent = '[SUCCESS] Report generated!';
+                            newLi.style.color = 'lightgreen';
+                        } else if (data.type === 'error') {
+                            newLi.textContent = `[ERROR] ${data.content}`;
+                            newLi.style.color = '#d9534f';
+                        } else if (data.type === 'done') {
+                            newLi.textContent = `[INFO] Process complete. You can now download the report.`;
+                            eventSource.close();
+                            submitButton.disabled = false;
+                            submitButton.textContent = 'Consolidate Reports';
+                        }
+                        statusList.appendChild(newLi);
+                        statusList.scrollTop = statusList.scrollHeight;
+                    };
+
+                    eventSource.onerror = function() {
+                        const errorLi = document.createElement('li');
+                        errorLi.textContent = '[ERROR] Connection to the status stream was lost.';
+                        errorLi.style.color = '#d9534f';
+                        statusList.appendChild(errorLi);
+                        eventSource.close();
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Consolidate Reports';
+                    };
+                } catch (error) {
+                    const errorLi = document.createElement('li');
+                    errorLi.textContent = `[FATAL] ${error.message}`;
+                    errorLi.style.color = '#d9534f';
+                    statusList.appendChild(errorLi);
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Consolidate Reports';
+                }
+            });
+            
+            loadConfig();
+        });
+    </script>
+</body>
+</html>
