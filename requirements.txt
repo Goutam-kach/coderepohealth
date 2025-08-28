@@ -4,3 +4,4 @@ gunicorn
 openai
 python-docx
 PyMuPDF
+dotenv
